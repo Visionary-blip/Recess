@@ -2,7 +2,7 @@
 // Anyone can call this URL, so it needs the BAND_CODE; otherwise a stranger could subscribe
 // themselves and read every inquiry.
 //
-// Env vars: BAND_CODE (shared passphrase the band types once per device), plus the Redis vars.
+// Env vars: BAND_CODE (shared passphrase the band types once per device), plus the Supabase vars (see _store.js).
 import { timingSafeEqual } from "node:crypto";
 import { storeConfigured, saveSubscription, countSubscriptions, hasSubscription } from "./_store.js";
 import { subscriptionId, validEndpoint } from "./_push.js";
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   if (origin && new URL(origin).host !== req.headers.host) return res.status(403).json({ error: "forbidden" });
 
   if (!process.env.BAND_CODE || !storeConfigured()) {
-    console.error("BAND_CODE or Redis not configured");
+    console.error("BAND_CODE or Supabase not configured");
     return res.status(500).json({ error: "server not configured" });
   }
 

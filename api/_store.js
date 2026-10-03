@@ -1,30 +1,42 @@
-// Tiny Upstash Redis REST client (no dependency). Add the Upstash Redis integration from the
-// Vercel Marketplace and it sets these env vars for you.
-const url = () => process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-const token = () => process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+// Stores push subscriptions in Supabase through its REST API (no dependency).
+// Table: see supabase/schema.sql.
+//
+// Env vars (Vercel project settings, server-side only, never PUBLIC_):
+//   SUPABASE_URL          e.g. https://abcdefgh.supabase.co
+//   SUPABASE_SECRET_KEY   the project's secret / service_role key
+const url = () => (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const key = () => process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-export const storeConfigured = () => Boolean(url() && token());
+export const storeConfigured = () => Boolean(url() && key());
 
-async function cmd(...args) {
-  const r = await fetch(url(), {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
-    body: JSON.stringify(args),
+const TABLE = "push_subscriptions";
+
+async function req(path, { method = "GET", body, prefer } = {}) {
+  const k = key();
+  const headers = { apikey: k, "Content-Type": "application/json" };
+  // Legacy service_role keys are JWTs and go in Authorization too; the newer sb_secret_ keys are not JWTs.
+  if (k.startsWith("eyJ")) headers.Authorization = `Bearer ${k}`;
+  if (prefer) headers.Prefer = prefer;
+  const r = await fetch(`${url()}/rest/v1/${TABLE}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`redis ${r.status}`);
-  return (await r.json()).result;
+  if (!r.ok) throw new Error(`supabase ${r.status} ${await r.text()}`);
+  return r.status === 204 ? null : r.json().catch(() => null);
 }
 
-const KEY = "push-subscriptions";
+export const saveSubscription = (id, subscription) =>
+  req("?on_conflict=id", { method: "POST", prefer: "resolution=merge-duplicates", body: { id, subscription } });
 
-export const saveSubscription = (id, sub) => cmd("HSET", KEY, id, JSON.stringify(sub));
-export const removeSubscription = (id) => cmd("HDEL", KEY, id);
-export const countSubscriptions = () => cmd("HLEN", KEY);
-export const hasSubscription = async (id) => (await cmd("HEXISTS", KEY, id)) === 1;
+export const removeSubscription = (id) => req(`?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export const hasSubscription = async (id) =>
+  ((await req(`?id=eq.${encodeURIComponent(id)}&select=id`)) || []).length > 0;
+
+export const countSubscriptions = async () => ((await req("?select=id")) || []).length;
 
 export async function allSubscriptions() {
-  const flat = (await cmd("HGETALL", KEY)) || []; // [id, json, id, json, ...]
-  const out = [];
-  for (let i = 0; i < flat.length; i += 2) out.push({ id: flat[i], sub: JSON.parse(flat[i + 1]) });
-  return out;
+  const rows = (await req("?select=id,subscription")) || [];
+  return rows.map((r) => ({ id: r.id, sub: r.subscription }));
 }

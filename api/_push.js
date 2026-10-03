@@ -1,4 +1,4 @@
-// Web Push to the band's installed app. Subscriptions live in Redis (see _store.js).
+// Web Push to the band's installed app. Subscriptions live in Supabase (see _store.js).
 import webpush from "web-push";
 import { createHash } from "node:crypto";
 import { storeConfigured, allSubscriptions, removeSubscription } from "./_store.js";
