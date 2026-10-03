@@ -1,0 +1,17 @@
+---
+import "../styles/global.css";
+import BookingForm from "../components/BookingForm.jsx";
+const formUrl = import.meta.env.PUBLIC_FORM_URL ?? "";
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1a1033" />
+    <title>Book Recess</title>
+  </head>
+  <body>
+    <BookingForm client:load bandName="Recess" formUrl={formUrl} />
+  </body>
+</html>

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a1033">
+<title>Book Recess</title>
+<style>
+  :root {
+    --bg: #1a1033;
+    --ink: #fff;
+    --red: #e8294b;
+    --blue: #1f6feb;
+    --yellow: #f2b01e;
+    --green: #1fa855;
+    --purple: #8a3ffc;
+    --pink: #ec4899;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    overflow: hidden;
+  }
+
+  header { padding: 14px 16px 0; display: flex; align-items: center; gap: 12px; min-height: 48px; }
+  .back {
+    background: rgba(255,255,255,.12); color: var(--ink); border: 0; border-radius: 12px;
+    width: 44px; height: 44px; font-size: 22px; font-weight: 800; cursor: pointer; flex: none;
+  }
+  .back[hidden] { display: none; }
+  .brand { font-weight: 900; letter-spacing: .12em; font-size: 14px; opacity: .8; text-transform: uppercase; }
+  .bar { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--yellow); transition: width .3s; }
+
+  main { flex: 1; display: flex; flex-direction: column; padding: 12px 16px 16px; min-height: 0; }
+  h1 { font-size: clamp(24px, 7vw, 34px); line-height: 1.1; margin: 8px 0 14px; font-weight: 900; text-align: center; }
+  .sub { text-align: center; opacity: .75; margin: -6px 0 14px; font-size: 15px; }
+
+  .tiles { flex: 1; display: grid; gap: 12px; min-height: 0; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; }
+  .tiles.one-col { grid-template-columns: 1fr; }
+  .tile {
+    border: 0; border-radius: 18px; color: #fff; cursor: pointer;
+    font: inherit; font-weight: 900; font-size: clamp(20px, 6vw, 30px); line-height: 1.05;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px; text-align: center; text-transform: uppercase;
+    box-shadow: 0 6px 0 rgba(0,0,0,.3);
+    transition: transform .08s, box-shadow .08s;
+  }
+  .tile small { font-size: 13px; font-weight: 600; opacity: .85; text-transform: none; letter-spacing: 0; }
+  .tile:active, .tile.picked { transform: translateY(5px); box-shadow: 0 1px 0 rgba(0,0,0,.3); }
+  .c0 { background: var(--red); } .c1 { background: var(--blue); }
+  .c2 { background: var(--yellow); color: #2a1d00; } .c3 { background: var(--green); }
+  .c4 { background: var(--purple); } .c5 { background: var(--pink); }
+
+  /* big first-question treatment */
+  .tiles.hero .tile { font-size: clamp(30px, 10vw, 52px); }
+
+  .cal { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .calhead { display: flex; align-items: center; justify-content: space-between; font-weight: 900; font-size: 22px; }
+  .nav { width: 52px; height: 52px; border: 0; border-radius: 14px; background: var(--blue); color: #fff; font-size: 30px; font-weight: 900; cursor: pointer; }
+  .nav:disabled { opacity: .25; }
+  .calgrid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto; grid-auto-rows: 1fr; gap: 6px; min-height: 0; }
+  .dow { text-align: center; font-weight: 800; opacity: .6; align-self: end; font-size: 14px; }
+  .day { border: 0; border-radius: 12px; background: #fff; color: #1a1033; font: inherit; font-weight: 800; font-size: 18px; cursor: pointer; box-shadow: 0 3px 0 rgba(0,0,0,.3); }
+  .day:disabled { background: rgba(255,255,255,.08); color: rgba(255,255,255,.3); box-shadow: none; cursor: default; }
+  .day:not(:disabled):active, .day.picked { background: var(--yellow); transform: translateY(2px); box-shadow: none; }
+  label { display: block; font-weight: 700; font-size: 14px; margin: 0 0 6px; opacity: .85; }
+  input, textarea {
+    width: 100%; font: inherit; font-size: 18px; padding: 14px; border-radius: 14px;
+    border: 3px solid transparent; background: #fff; color: #1a1033;
+  }
+  input:focus, textarea:focus { outline: 0; border-color: var(--yellow); }
+  textarea { min-height: 90px; resize: vertical; }
+  .fields { flex: 1; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-bottom: 8px; }
+  .go {
+    margin-top: 12px; border: 0; border-radius: 18px; background: var(--green); color: #fff;
+    font: inherit; font-weight: 900; font-size: 24px; text-transform: uppercase; padding: 20px;
+    box-shadow: 0 6px 0 rgba(0,0,0,.3); cursor: pointer;
+  }
+  .go:active { transform: translateY(5px); box-shadow: 0 1px 0 rgba(0,0,0,.3); }
+  .go:disabled { opacity: .5; }
+  .link { background: none; border: 0; color: var(--ink); text-decoration: underline; font: inherit; opacity: .8; padding: 10px; cursor: pointer; }
+  .err { color: #ffb4c0; font-weight: 700; text-align: center; min-height: 1.2em; margin: 6px 0 0; }
+
+  .done { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; }
+  .done .big { font-size: 80px; }
+  .done p { font-size: 18px; max-width: 28ch; opacity: .85; margin: 0; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <button class="back" id="back" aria-label="Back" hidden>←</button>
+  <span class="brand" id="brand">Book Recess</span>
+  <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
+</header>
+<main id="app" aria-live="polite"></main>
+
+<script>
+/* ---------- CONFIG ----------
+   Where submissions go. Pick one:
+   0. sheetUrl: the Google Apps Script web app URL that writes rows to your
+      Google Sheet (setup steps are in apps-script.gs).
+   1. endpoint: a Formspree (formspree.io) URL, e.g. "https://formspree.io/f/xxxxxxx".
+      Free tier emails you each submission.
+   2. Leave endpoint empty and set email: the phone's mail app opens with the
+      answers pre-filled, ready to send. */
+const CONFIG = {
+  bandName: "Recess",
+  sheetUrl: "",      // e.g. "https://script.google.com/macros/s/XXXX/exec"
+  endpoint: "",
+  email: ""          // e.g. "recessband@gmail.com"
+};
+
+/* ---------- QUESTIONS ---------- */
+const OFF = "OFF CAMPUS", WM = "WILLIAM & MARY";
+const steps = [
+  { key: "venue", q: "Where's the gig?", hero: true, oneCol: true,
+    options: [{ label: WM, color: "#0b5d2e" }, { label: OFF, color: "#10307a" }] },
+
+  { key: "eventType", oneCol: true,
+    q: a => a.venue === WM ? "What kind of event?" : "How far away?",
+    optionsFor: a => a.venue === WM
+      ? [{ label: "Club" }, { label: "Greek" }, { label: "House Show" }]
+      : [{ label: "Under 2 Hours Away" }, { label: "2-6 Hours Away" }, { label: "6+ Hours" }] },
+
+  { key: "date", q: "When is it?", type: "date" },
+
+  { key: "contact", q: "Who are we talking to?", type: "contact" }
+];
+
+/* ---------- STATE ---------- */
+const answers = {};
+let i = 0;
+const app = document.getElementById("app");
+const backBtn = document.getElementById("back");
+const bar = document.getElementById("bar");
+const barWrap = document.getElementById("barWrap");
+const brand = document.getElementById("brand");
+
+const el = (tag, props = {}, ...kids) => {
+  const n = Object.assign(document.createElement(tag), props);
+  kids.flat().forEach(k => n.append(k));
+  return n;
+};
+
+function chrome() {
+  backBtn.hidden = i === 0;
+  brand.hidden = i > 0;
+  barWrap.hidden = i === 0;
+  bar.style.width = (i / (steps.length - 1)) * 100 + "%";
+}
+
+function render() {
+  chrome();
+  app.replaceChildren();
+  const s = steps[i];
+  app.append(el("h1", { textContent: typeof s.q === "function" ? s.q(answers) : s.q }));
+  if (s.type === "date") return renderDate(s);
+  if (s.type === "contact") return renderContact(s);
+
+  const opts = s.options || s.optionsFor(answers);
+  const grid = el("div", { className: "tiles" + (s.oneCol ? " one-col" : "") + (s.hero ? " hero" : "") });
+  opts.forEach((o, n) => {
+    const b = el("button", { className: "tile c" + n, type: "button" },
+      o.label,
+      o.sub ? el("small", { textContent: o.sub }) : "");
+    if (o.color) b.style.background = o.color;
+    b.onclick = () => { b.classList.add("picked"); answers[s.key] = o.label; setTimeout(next, 140); };
+    grid.append(b);
+  });
+  app.append(grid);
+}
+
+let calMonth = null;
+function renderDate() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (!calMonth) calMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const wrap = el("div", { className: "cal" });
+  const draw = () => {
+    wrap.replaceChildren();
+    const y = calMonth.getFullYear(), m = calMonth.getMonth();
+    const atStart = y === today.getFullYear() && m === today.getMonth();
+    const prev = el("button", { className: "nav", type: "button", textContent: "‹", disabled: atStart, ariaLabel: "Previous month" });
+    const nxt = el("button", { className: "nav", type: "button", textContent: "›", ariaLabel: "Next month" });
+    prev.onclick = () => { calMonth = new Date(y, m - 1, 1); draw(); };
+    nxt.onclick = () => { calMonth = new Date(y, m + 1, 1); draw(); };
+    wrap.append(el("div", { className: "calhead" }, prev,
+      el("span", { textContent: calMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" }) }), nxt));
+    const grid = el("div", { className: "calgrid" });
+    "SMTWTFS".split("").forEach(d => grid.append(el("span", { className: "dow", textContent: d })));
+    for (let n = 0; n < new Date(y, m, 1).getDay(); n++) grid.append(el("span"));
+    for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) {
+      const date = new Date(y, m, d);
+      const b = el("button", { className: "day", type: "button", textContent: d, disabled: date < today });
+      b.onclick = () => {
+        answers.date = date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+        b.classList.add("picked"); setTimeout(next, 140);
+      };
+      grid.append(b);
+    }
+    wrap.append(grid);
+  };
+  draw();
+  const flex = el("button", { className: "link", textContent: "Not sure yet / flexible", type: "button" });
+  flex.onclick = () => { answers.date = "Flexible"; next(); };
+  app.append(wrap, flex);
+}
+
+function renderContact() {
+  const f = (id, label, type, ph, extra = {}) =>
+    el("div", {}, el("label", { htmlFor: id, textContent: label }),
+      el(type === "textarea" ? "textarea" : "input", Object.assign({ id, placeholder: ph, value: answers[id] || "" },
+        type === "textarea" ? {} : { type }, extra)));
+  const err = el("p", { className: "err" });
+  const send = el("button", { className: "go", type: "button", textContent: "Send it" });
+  app.append(
+    el("div", { className: "fields" },
+      f("name", "Your name", "text", "Jane Doe", { autocomplete: "name" }),
+      f("contact", "Best way to reach you (phone # or email)", "text", "555-123-4567 or you@email.com", { autocomplete: "email" })),
+    err, send);
+  send.onclick = async () => {
+    ["name", "contact"].forEach(k => answers[k] = document.getElementById(k).value.trim());
+    if (!answers.name || !answers.contact) { err.textContent = "Add your name and a way to reach you."; return; }
+    err.textContent = ""; send.disabled = true; send.textContent = "Sending…";
+    try { await submit(); done(); }
+    catch (e) { err.textContent = "Couldn't send. Check your connection and try again."; send.disabled = false; send.textContent = "Send it"; }
+  };
+}
+
+async function submit() {
+  const payload = {
+    "Venue": answers.venue, [answers.venue === WM ? "Event type" : "Distance"]: answers.eventType, "Date": answers.date,
+    "Name": answers.name, "Contact": answers.contact
+  };
+  if (CONFIG.sheetUrl) {
+    // Google Apps Script web apps don't send CORS headers, so the response is opaque;
+    // a resolved fetch means the request went out.
+    await fetch(CONFIG.sheetUrl, { method: "POST", mode: "no-cors", body: new URLSearchParams(payload) });
+  } else if (CONFIG.endpoint) {
+    const r = await fetch(CONFIG.endpoint, {
+      method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(r.status);
+  } else if (CONFIG.email) {
+    const body = Object.entries(payload).map(([k, v]) => `${k}: ${v}`).join("\n");
+    location.href = `mailto:${CONFIG.email}?subject=${encodeURIComponent("Booking request: " + answers.name)}&body=${encodeURIComponent(body)}`;
+  } else {
+    console.log("No endpoint or email configured. Submission:", payload);
+  }
+}
+
+function done() {
+  backBtn.hidden = true; barWrap.hidden = true; brand.hidden = false;
+  app.replaceChildren(el("div", { className: "done" },
+    el("h1", { textContent: "You're in!" }),
+    el("p", { textContent: `Thanks ${answers.name.split(" ")[0]}. ${CONFIG.bandName} will get back to you soon.` })));
+}
+
+function next() { i = Math.min(i + 1, steps.length - 1); render(); }
+backBtn.onclick = () => { i = Math.max(i - 1, 0); render(); };
+render();
+</script>
+</body>
+</html>
