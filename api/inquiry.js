@@ -11,7 +11,7 @@ import { notifyBand } from "./_push.js";
 import { storeConfigured, insertRequest } from "./_store.js";
 
 const FIELDS = [
-  ["Venue", 100], ["Event type", 100], ["Distance", 100], ["Venue type", 100],
+  ["Venue", 100], ["Event type", 100], ["Distance", 100], ["Venue type", 100], ["Chapter", 150],
   ["Date", 100], ["Time of day", 100], ["Set length", 100],
   ["Name", 200], ["Contact", 200], ["Notes", 2000],
 ];
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
     if (!storeConfigured()) return false;
     try {
       await insertRequest({
-        venue: data.Venue, event_type: data["Event type"], distance: data.Distance, venue_type: data["Venue type"],
+        venue: data.Venue, event_type: data["Event type"], distance: data.Distance, venue_type: data["Venue type"], chapter: data.Chapter,
         date_text: data.Date, date_sort: dateSort, time_of_day: data["Time of day"], set_length: data["Set length"],
         name: data.Name, contact: data.Contact, notes: data.Notes,
       });

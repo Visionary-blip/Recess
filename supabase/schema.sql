@@ -29,3 +29,6 @@ create table if not exists booking_requests (
 );
 
 alter table booking_requests enable row level security;
+
+-- Added later: the Greek chapter, when the gig is a Greek event. Safe to re-run.
+alter table booking_requests add column if not exists chapter text;

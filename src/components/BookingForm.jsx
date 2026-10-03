@@ -1,14 +1,18 @@
 import { useEffect, useState } from "preact/hooks";
 import Calendar from "./Calendar.jsx";
 import { getBandCode } from "../lib/band.js";
+import { WM_CHAPTERS, US_CHAPTERS } from "../data/greek.js";
 
 const WM = "WILLIAM & MARY";
 const OFF = "OFF CAMPUS";
 
-const stepsFor = (venue) =>
-  venue === OFF
-    ? ["venue", "eventType", "gigType", "date", "time", "contact"]
-    : ["venue", "eventType", "date", "time", "contact"];
+// Steps depend on earlier answers: Greek gigs ask which chapter is hosting.
+const stepsFor = (a) => {
+  const steps = ["venue", "eventType"];
+  if (a.venue === OFF) steps.push("gigType");
+  if ((a.venue === WM && a.eventType === "Greek") || (a.venue === OFF && a.gigType === "Greek")) steps.push("chapter");
+  return [...steps, "date", "time", "contact"];
+};
 
 const venueOptions = [
   { label: WM, color: "#0b5d2e" },
@@ -51,6 +55,48 @@ const SET_LENGTHS = [
   { label: "1.5 Hour Set", short: "1.5 hrs" },
   { label: "2 Hour Set", short: "2 hrs" },
 ];
+
+// Lowercased letters and digits only, so "Tri-Delta", "tri delta" and "TRIDELTA" all match.
+const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9α-ω]/g, "");
+
+function ChapterPicker({ chapters, onPick }) {
+  const [q, setQ] = useState("");
+  const query = norm(q);
+
+  // Matches Greek letters, the English name, or a nickname/abbreviation (e.g. "SAE", "Tri-Delta").
+  // Names that start with what was typed come before names that merely contain it.
+  const results = query
+    ? chapters
+        .map((c) => {
+          const names = [c.g, c.n, ...c.a].map(norm);
+          return { c, rank: names.some((x) => x.startsWith(query)) ? 0 : names.some((x) => x.includes(query)) ? 1 : 2 };
+        })
+        .filter((x) => x.rank < 2)
+        .sort((x, y) => x.rank - y.rank)
+        .map((x) => x.c)
+    : chapters;
+
+  return (
+    <div class="chapters">
+      <input type="search" class="chsearch" placeholder="Search for your chapter" autocomplete="off"
+        autocapitalize="off" spellcheck={false} enterkeyhint="done" value={q}
+        onInput={(e) => setQ(e.currentTarget.value)} />
+      <div class="chlist" role="listbox" aria-label="Chapters">
+        {results.map((c, n) => (
+          <button key={c.g} type="button" role="option" class={"chopt c" + (n % 4)} onClick={() => onPick(c.g)}>
+            {c.g}
+          </button>
+        ))}
+        {results.length === 0 && <p class="rqmsg">No match.</p>}
+        {q.trim() && !results.some((c) => norm(c.g) === query) && (
+          <button type="button" class="link" onClick={() => onPick(q.trim())}>
+            Not listed? Use "{q.trim()}"
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function TimeInput({ onSubmit }) {
   const [time, setTime] = useState("");
@@ -151,10 +197,10 @@ export default function BookingForm({ bandName, formUrl }) {
   // Picking a venue can change which steps follow, so recompute from the new value.
   const go = (patch) => {
     set(patch);
-    const steps = stepsFor(patch.venue ?? a.venue);
+    const steps = stepsFor({ ...a, ...patch });
     setI((n) => Math.min(n + 1, steps.length - 1));
   };
-  const STEPS = stepsFor(a.venue);
+  const STEPS = stepsFor(a);
   const step = STEPS[i];
 
   const submit = async (name, contact, notes, website) => {
@@ -162,6 +208,7 @@ export default function BookingForm({ bandName, formUrl }) {
       Venue: a.venue,
       [a.venue === WM ? "Event type" : "Distance"]: a.eventType,
       ...(a.venue === OFF && { "Venue type": a.gigType }),
+      ...(stepsFor(a).includes("chapter") && { Chapter: a.chapter }),
       Date: a.date,
       "Date ISO": a.dateISO || "",
       "Time of day": a.time,
@@ -189,6 +236,7 @@ export default function BookingForm({ bandName, formUrl }) {
     venue: "Where's the gig?",
     eventType: a.venue === WM ? "What kind of event?" : "How far away?",
     gigType: "What kind of gig?",
+    chapter: "Which chapter?",
     date: "When is it?",
     time: "What time should we play?",
     contact: "Who are we talking to?",
@@ -223,6 +271,10 @@ export default function BookingForm({ bandName, formUrl }) {
             {step === "gigType" && (
               <Tiles oneCol key={a.eventType} options={[{ label: "Venue" }, { label: "Greek" }]}
                 onPick={(t) => go({ gigType: t })} />
+            )}
+            {step === "chapter" && (
+              <ChapterPicker key={a.venue} chapters={a.venue === WM ? WM_CHAPTERS : US_CHAPTERS}
+                onPick={(c) => go({ chapter: c })} />
             )}
             {step === "date" && (
               <>

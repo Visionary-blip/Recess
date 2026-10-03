@@ -27,7 +27,7 @@ const row = (name, value) =>
 
 export function buildEmail(d) {
   const isWM = d.Venue === "WILLIAM & MARY";
-  const sub = isWM ? d["Event type"] : [d.Distance, d["Venue type"]].filter(Boolean).join(" · ");
+  const sub = (isWM ? [d["Event type"]] : [d.Distance, d["Venue type"]]).concat(d.Chapter || []).filter(Boolean).join(" · ");
 
   const isEmail = d.Contact.includes("@");
   const href = isEmail ? `mailto:${encodeURIComponent(d.Contact)}` : `tel:${d.Contact.replace(/[^\d+]/g, "")}`;

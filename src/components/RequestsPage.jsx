@@ -66,7 +66,7 @@ function Card({ r, onContacted }) {
   };
 
   const isWM = r.venue === WM;
-  const sub = isWM ? r.event_type : [r.distance, r.venue_type].filter(Boolean).join(" · ");
+  const sub = (isWM ? [r.event_type] : [r.distance, r.venue_type]).concat(r.chapter || []).filter(Boolean).join(" · ");
   const isEmail = (r.contact || "").includes("@");
   const href = isEmail ? `mailto:${r.contact}` : `tel:${(r.contact || "").replace(/[^\d+]/g, "")}`;
 
