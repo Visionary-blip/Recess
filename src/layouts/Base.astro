@@ -20,5 +20,34 @@ const { title = "Book Recess", noindex = false } = Astro.props;
   </head>
   <body>
     <slot />
+    <script is:inline>
+      // A tapped notification leaves the page it wants in a cache (see public/sw.js); go there.
+      (function () {
+        function go(url) {
+          if (!url) return;
+          var target = new URL(url, location.href);
+          if (target.pathname === location.pathname) return;
+          location.assign(target.href);
+        }
+        function check() {
+          if (!("caches" in window)) return;
+          caches.open("recess-pending").then(function (c) {
+            return c.match("/pending").then(function (r) {
+              if (!r) return;
+              return c.delete("/pending").then(function () { return r.text(); }).then(go);
+            });
+          }).catch(function () {});
+        }
+        check();
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") check();
+        });
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.addEventListener("message", function (e) {
+            if (e.data && e.data.type === "open") go(e.data.url);
+          });
+        }
+      })();
+    </script>
   </body>
 </html>
