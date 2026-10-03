@@ -3,23 +3,16 @@
 // themselves and read every inquiry.
 //
 // Env vars: BAND_CODE (shared passphrase the band types once per device), plus the Supabase vars (see _store.js).
-import { timingSafeEqual } from "node:crypto";
 import { storeConfigured, saveSubscription, countSubscriptions, hasSubscription } from "./_store.js";
 import { subscriptionId, validEndpoint } from "./_push.js";
+import { checkBandCode, sameSite } from "./_auth.js";
 
 const MAX_DEVICES = 25;
-
-function codeMatches(given) {
-  const a = Buffer.from(String(given || ""));
-  const b = Buffer.from(process.env.BAND_CODE || "");
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "method not allowed" });
 
-  const origin = req.headers.origin;
-  if (origin && new URL(origin).host !== req.headers.host) return res.status(403).json({ error: "forbidden" });
+  if (!sameSite(req)) return res.status(403).json({ error: "forbidden" });
 
   if (!process.env.BAND_CODE || !storeConfigured()) {
     console.error("BAND_CODE or Supabase not configured");
@@ -27,7 +20,7 @@ export default async function handler(req, res) {
   }
 
   const { subscription: s, code } = req.body && typeof req.body === "object" ? req.body : {};
-  if (!codeMatches(code)) return res.status(401).json({ error: "wrong code" });
+  if (!checkBandCode(req, res, code)) return;
 
   const ok =
     s && typeof s.endpoint === "string" && s.endpoint.length < 1000 && validEndpoint(s.endpoint) &&

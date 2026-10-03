@@ -1,5 +1,5 @@
 // Service worker: shows push notifications and keeps the app shell available offline.
-const CACHE = "recess-shell-v1";
+const CACHE = "recess-shell-v2";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/"])).then(() => self.skipWaiting()));
@@ -47,8 +47,14 @@ self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || "/";
   e.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) if ("focus" in w) return w.focus();
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (wins) => {
+      for (const w of wins) {
+        try {
+          // Reuse an open window, but take it to the page the notification is about.
+          if ("navigate" in w) await w.navigate(url);
+          return await w.focus();
+        } catch { /* fall through to a fresh window */ }
+      }
       return self.clients.openWindow(url);
     })
   );

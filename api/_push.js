@@ -29,7 +29,7 @@ export async function notifyBand({ title, body }) {
   try {
     webpush.setVapidDetails(`mailto:${NOTIFY_EMAIL}`, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
     const subs = await allSubscriptions();
-    const payload = JSON.stringify({ title, body, url: "/" });
+    const payload = JSON.stringify({ title, body, url: "/requests" });
     const results = await Promise.all(
       subs.map(async ({ id, sub }) => {
         try {

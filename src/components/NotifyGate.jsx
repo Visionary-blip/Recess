@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { setBandCode } from "../lib/band.js";
 
 const VAPID_PUBLIC_KEY = import.meta.env.PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
@@ -65,6 +66,7 @@ export default function NotifyGate() {
       });
       if (res.status === 401) return setErr("Wrong band code.");
       if (!res.ok) return setErr("Couldn't turn notifications on. Try again.");
+      setBandCode(code.trim()); // lets this device open the /requests page without asking again
       setDone(true);
       setTimeout(() => setShow(false), 1500);
     } catch (e) {

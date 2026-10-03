@@ -8,6 +8,7 @@
 
 import { buildEmail } from "./_email.js";
 import { notifyBand } from "./_push.js";
+import { storeConfigured, insertRequest } from "./_store.js";
 
 const FIELDS = [
   ["Venue", 100], ["Event type", 100], ["Distance", 100], ["Venue type", 100],
@@ -47,6 +48,9 @@ export default async function handler(req, res) {
   const data = Object.fromEntries(FIELDS.map(([k, max]) => [k, clean(input[k], max)]));
   if (!data.Name || !data.Contact) return res.status(400).json({ error: "name and contact required" });
 
+  // Machine-readable date for sorting on the band's requests page; "Flexible" has none.
+  const dateSort = /^\d{4}-\d{2}-\d{2}$/.test(input["Date ISO"]) ? input["Date ISO"] : null;
+
   const { RESEND_API_KEY, NOTIFY_EMAIL } = process.env;
   if (!RESEND_API_KEY || !NOTIFY_EMAIL) {
     console.error("RESEND_API_KEY or NOTIFY_EMAIL not set");
@@ -55,7 +59,7 @@ export default async function handler(req, res) {
 
   const text = FIELDS.filter(([k]) => data[k]).map(([k]) => `${k}: ${data[k]}`).join("\n");
 
-  // Email and push are independent: the inquiry counts as received if either one gets through.
+  // Email, saving and push are independent: the inquiry counts as received if any one gets through.
   const sendEmail = async () => {
     try {
       const r = await fetch("https://api.resend.com/emails", {
@@ -77,10 +81,26 @@ export default async function handler(req, res) {
     }
   };
 
-  const [emailed, pushed] = await Promise.all([
+  const saveRequest = async () => {
+    if (!storeConfigured()) return false;
+    try {
+      await insertRequest({
+        venue: data.Venue, event_type: data["Event type"], distance: data.Distance, venue_type: data["Venue type"],
+        date_text: data.Date, date_sort: dateSort, time_of_day: data["Time of day"], set_length: data["Set length"],
+        name: data.Name, contact: data.Contact, notes: data.Notes,
+      });
+      return true;
+    } catch (e) {
+      console.error("save request failed", e);
+      return false;
+    }
+  };
+
+  const [emailed, saved, pushed] = await Promise.all([
     sendEmail(),
+    saveRequest(),
     notifyBand({ title: "New booking request", body: [data.Name, data.Date].filter(Boolean).join(" · ") }),
   ]);
-  if (!emailed && !pushed) return res.status(502).json({ error: "email failed" });
+  if (!emailed && !saved && !pushed) return res.status(502).json({ error: "email failed" });
   return res.status(200).json({ ok: true });
 }

@@ -1,5 +1,6 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import Calendar from "./Calendar.jsx";
+import { getBandCode } from "../lib/band.js";
 
 const WM = "WILLIAM & MARY";
 const OFF = "OFF CAMPUS";
@@ -143,6 +144,8 @@ export default function BookingForm({ bandName, formUrl }) {
   const [i, setI] = useState(0);
   const [a, setA] = useState({});
   const [done, setDone] = useState(null);
+  const [isBand, setIsBand] = useState(false);
+  useEffect(() => setIsBand(Boolean(getBandCode())), []);
 
   const set = (patch) => setA((prev) => ({ ...prev, ...patch }));
   // Picking a venue can change which steps follow, so recompute from the new value.
@@ -160,6 +163,7 @@ export default function BookingForm({ bandName, formUrl }) {
       [a.venue === WM ? "Event type" : "Distance"]: a.eventType,
       ...(a.venue === OFF && { "Venue type": a.gigType }),
       Date: a.date,
+      "Date ISO": a.dateISO || "",
       "Time of day": a.time,
       "Set length": a.setLength,
       Name: name,
@@ -199,6 +203,7 @@ export default function BookingForm({ bandName, formUrl }) {
         {done || i === 0
           ? <span class="brand">Book {bandName}</span>
           : <div class="bar"><i style={{ width: (i / (STEPS.length - 1)) * 100 + "%" }} /></div>}
+        {isBand && !done && <a class="stafflink" href="/requests">Requests →</a>}
       </header>
       <main aria-live="polite">
         {done ? (
@@ -221,8 +226,8 @@ export default function BookingForm({ bandName, formUrl }) {
             )}
             {step === "date" && (
               <>
-                <Calendar onPick={(d) => go({ date: d })} />
-                <button class="link" type="button" onClick={() => go({ date: "Flexible" })}>
+                <Calendar onPick={(d, iso) => go({ date: d, dateISO: iso })} />
+                <button class="link" type="button" onClick={() => go({ date: "Flexible", dateISO: "" })}>
                   Not sure yet / flexible
                 </button>
               </>

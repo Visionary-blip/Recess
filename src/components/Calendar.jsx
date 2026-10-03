@@ -17,7 +17,8 @@ export default function Calendar({ onPick }) {
 
   const pick = (d) => {
     setPicked(d);
-    setTimeout(() => onPick(fmt(new Date(y, m, d))), 140);
+    const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    setTimeout(() => onPick(fmt(new Date(y, m, d)), iso), 140);
   };
 
   return (
