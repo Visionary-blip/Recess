@@ -4,8 +4,10 @@
 // Env vars (Vercel project settings, never in the frontend):
 //   RESEND_API_KEY  API key from resend.com
 //   NOTIFY_EMAIL    where inquiries are sent
+// Also pushes a notification to the band's installed app (see _push.js, subscribe.js).
 
 import { buildEmail } from "./_email.js";
+import { notifyBand } from "./_push.js";
 
 const FIELDS = [
   ["Venue", 100], ["Event type", 100], ["Distance", 100], ["Venue type", 100],
@@ -52,25 +54,33 @@ export default async function handler(req, res) {
   }
 
   const text = FIELDS.filter(([k]) => data[k]).map(([k]) => `${k}: ${data[k]}`).join("\n");
-  try {
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: "Recess Bookings <onboarding@resend.dev>",
-        to: [NOTIFY_EMAIL],
-        subject: `Booking request: ${data.Name}${data.Date ? ` (${data.Date})` : ""}`,
-        text,
-        html: buildEmail(data),
-      }),
-    });
-    if (!r.ok) {
-      console.error("Resend error", r.status, await r.text());
-      return res.status(502).json({ error: "email failed" });
+
+  // Email and push are independent: the inquiry counts as received if either one gets through.
+  const sendEmail = async () => {
+    try {
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "Recess Bookings <onboarding@resend.dev>",
+          to: [NOTIFY_EMAIL],
+          subject: `Booking request: ${data.Name}${data.Date ? ` (${data.Date})` : ""}`,
+          text,
+          html: buildEmail(data),
+        }),
+      });
+      if (!r.ok) console.error("Resend error", r.status, await r.text());
+      return r.ok;
+    } catch (e) {
+      console.error(e);
+      return false;
     }
-    return res.status(200).json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    return res.status(502).json({ error: "email failed" });
-  }
+  };
+
+  const [emailed, pushed] = await Promise.all([
+    sendEmail(),
+    notifyBand({ title: "New booking request", body: [data.Name, data.Date].filter(Boolean).join(" · ") }),
+  ]);
+  if (!emailed && !pushed) return res.status(502).json({ error: "email failed" });
+  return res.status(200).json({ ok: true });
 }

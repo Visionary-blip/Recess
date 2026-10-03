@@ -91,3 +91,7 @@ textarea { min-height: 90px; resize: vertical; }
 .setpick .tile { min-height: 110px; font-size: clamp(18px, 5.5vw, 26px); }
 .setpick .tile:not(.picked) { opacity: .55; }
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.gate { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: flex; flex-direction: column;
+  padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 16px); }
+.gate .fields { flex: 0 0 auto; margin-top: 8px; }
+.gate .err { flex: 1; }
