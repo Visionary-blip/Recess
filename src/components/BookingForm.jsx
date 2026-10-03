@@ -45,15 +45,20 @@ function formatContact(v) {
   return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
 }
 
+const SET_LENGTHS = [
+  { label: "1 Hour Set", short: "1 hr" },
+  { label: "1.5 Hour Set", short: "1.5 hrs" },
+  { label: "2 Hour Set", short: "2 hrs" },
+];
+
 function TimeInput({ onSubmit }) {
   const [time, setTime] = useState("");
-  const [length, setLength] = useState(null);
+  const [stop, setStop] = useState(0); // index into SET_LENGTHS
   const [err, setErr] = useState("");
   const next = (e) => {
     e.preventDefault();
     if (!time.trim()) return setErr("Type the time you'd like us to play.");
-    if (!length) return setErr("Pick a 1 hour or 2 hour set.");
-    onSubmit(time.trim(), length);
+    onSubmit(time.trim(), SET_LENGTHS[stop].label);
   };
   return (
     <form class="timeform" onSubmit={next}>
@@ -65,14 +70,12 @@ function TimeInput({ onSubmit }) {
         </div>
         <div>
           <label>Set length</label>
-          <div class="setpick">
-            {["1 Hour Set", "2 Hour Set"].map((label, n) => (
-              <button key={label} type="button"
-                class={"tile c" + n + (length === label ? " picked" : "")}
-                onClick={() => { setLength(label); setErr(""); }}>
-                {label}
-              </button>
-            ))}
+          <div class="setvalue">{SET_LENGTHS[stop].label}</div>
+          <input class="slider" type="range" min="0" max={SET_LENGTHS.length - 1} step="1" value={stop}
+            aria-label="Set length" aria-valuetext={SET_LENGTHS[stop].label}
+            onInput={(e) => setStop(Number(e.currentTarget.value))} />
+          <div class="ticks" aria-hidden="true">
+            {SET_LENGTHS.map((l) => <span key={l.short}>{l.short}</span>)}
           </div>
         </div>
       </div>
@@ -107,7 +110,7 @@ function Contact({ onSubmit }) {
       <div class="fields">
         <div>
           <label for="name">Your name</label>
-          <input id="name" type="text" autocomplete="name" placeholder="Jane Doe"
+          <input id="name" type="text" autocomplete="name" placeholder="Jimi Hendrix"
             value={name} onInput={(e) => setName(e.currentTarget.value)} />
         </div>
         <div>
