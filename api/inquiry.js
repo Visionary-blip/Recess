@@ -5,6 +5,8 @@
 //   RESEND_API_KEY  API key from resend.com
 //   NOTIFY_EMAIL    where inquiries are sent
 
+import { buildEmail } from "./_email.js";
+
 const FIELDS = [
   ["Venue", 100], ["Event type", 100], ["Distance", 100], ["Venue type", 100],
   ["Date", 100], ["Time of day", 100], ["Set length", 100],
@@ -59,6 +61,7 @@ export default async function handler(req, res) {
         to: [NOTIFY_EMAIL],
         subject: `Booking request: ${data.Name}${data.Date ? ` (${data.Date})` : ""}`,
         text,
+        html: buildEmail(data),
       }),
     });
     if (!r.ok) {
