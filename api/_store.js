@@ -57,3 +57,13 @@ export async function markContacted(id) {
   });
   return (rows || [])[0];
 }
+
+// Deletes a request only if it has been marked contacted (enforced here, not just in the app).
+// Returns the deleted row, or undefined if there was no such contacted request.
+export async function deleteContacted(id) {
+  const rows = await req(REQUESTS, `?id=eq.${encodeURIComponent(id)}&contacted=eq.true`, {
+    method: "DELETE",
+    prefer: "return=representation",
+  });
+  return (rows || [])[0];
+}

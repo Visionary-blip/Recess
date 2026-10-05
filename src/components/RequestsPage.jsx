@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { getBandCode, setBandCode, clearBandCode } from "../lib/band.js";
 
 const WM = "WILLIAM & MARY";
@@ -41,7 +41,14 @@ const SAMPLE = [
   { id: "3", created_at: new Date(Date.now() - 2 * 86400e3).toISOString(), venue: WM, event_type: "Student Org", date_text: "Flexible", date_sort: null, time_of_day: "8pm", set_length: "1 Hour Set", name: "Sam", contact: "555-000-1111", notes: "", contacted: false },
 ];
 
-function Card({ r, onContacted }) {
+// Contacted cards can be swiped left-to-right to delete. Past this share of the card's width, letting go deletes.
+const SWIPE_COMMIT = 0.4;
+
+function Card({ r, onContacted, onDelete }) {
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef(null);
+  const wrap = useRef(null);
   const [stage, setStage] = useState(0); // 0 idle, 1 waiting for the confirming tap, 2 saving
   const [err, setErr] = useState("");
 
@@ -65,13 +72,55 @@ function Card({ r, onContacted }) {
     }
   };
 
+  // Swiping is only ever wired up for contacted requests.
+  const swipe = r.contacted && {
+    onPointerDown: (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      drag.current = { x: e.clientX, y: e.clientY, tracking: false, id: e.pointerId };
+    },
+    onPointerMove: (e) => {
+      const d = drag.current;
+      if (!d) return;
+      const mx = e.clientX - d.x, my = e.clientY - d.y;
+      if (!d.tracking) {
+        // Only a mostly-horizontal rightward drag counts; anything else is the page scrolling.
+        if (Math.abs(my) > 12 && Math.abs(my) > Math.abs(mx)) { drag.current = null; return; }
+        if (mx > 10 && mx > Math.abs(my) * 1.5) {
+          d.tracking = true;
+          setDragging(true);
+          try { e.currentTarget.setPointerCapture(d.id); } catch { /* synthetic or finished pointer */ }
+        } else return;
+      }
+      setDx(Math.max(0, mx));
+    },
+    onPointerUp: () => finishSwipe(),
+    onPointerCancel: () => finishSwipe(),
+  };
+
+  function finishSwipe() {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || !d.tracking) return;
+    setDragging(false);
+    const width = (wrap.current && wrap.current.offsetWidth) || 300;
+    if (dx > width * SWIPE_COMMIT) {
+      setDx(width); // slide off to the right, then remove
+      setTimeout(() => onDelete(r), 180);
+    } else {
+      setDx(0);
+    }
+  }
+
   const isWM = r.venue === WM;
   const sub = (isWM ? [r.event_type] : [r.distance, r.venue_type]).concat(r.chapter || []).filter(Boolean).join(" · ");
   const isEmail = (r.contact || "").includes("@");
   const href = isEmail ? `mailto:${r.contact}` : `tel:${(r.contact || "").replace(/[^\d+]/g, "")}`;
 
   return (
-    <article class={"rq" + (r.contacted ? " done" : "")}>
+    <div class="swipewrap" ref={wrap}>
+      {r.contacted && <div class="swipe-bg" aria-hidden="true" style={{ opacity: dx > 0 ? 1 : 0 }}>Delete</div>}
+    <article class={"rq" + (r.contacted ? " done swipeable" : "")} {...swipe}
+      style={r.contacted ? { transform: `translateX(${dx}px)`, transition: dragging ? "none" : "transform .18s ease-out" } : undefined}>
       <div class="rq-venue" style={{ background: isWM ? "#0b5d2e" : "#10307a" }}>
         <b>{r.venue}</b>
         {sub && <span>{sub}</span>}
@@ -95,7 +144,10 @@ function Card({ r, onContacted }) {
         {r.notes && <p class="rq-notes">{r.notes}</p>}
         <div class="rq-foot">Submitted {ago(r.created_at)}</div>
         {r.contacted ? (
-          <div class="rq-btn is-done">✓ Contacted{r.contacted_at ? ` · ${ago(r.contacted_at)}` : ""}</div>
+          <div class="rq-btn is-done">
+            ✓ Contacted{r.contacted_at ? ` · ${ago(r.contacted_at)}` : ""}
+            <small>Swipe right to delete</small>
+          </div>
         ) : (
           <button type="button" disabled={stage === 2}
             class={"rq-btn " + (stage === 1 ? "confirm" : "")} onClick={press}>
@@ -105,6 +157,7 @@ function Card({ r, onContacted }) {
         {err && <p class="err">{err}</p>}
       </div>
     </article>
+    </div>
   );
 }
 
@@ -177,6 +230,59 @@ export default function RequestsPage() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [code]);
 
+  // Deleting is delayed 5 seconds so a stray swipe can be undone. Nothing is removed from the
+  // database until the delay ends (or the app is closed or hidden, which commits it right away).
+  const pending = useRef(null); // { item, index, timer }
+  const [undo, setUndo] = useState(null); // request shown in the "Deleted. Undo" bar
+  const [delError, setDelError] = useState("");
+
+  const commitDelete = async () => {
+    const p = pending.current;
+    if (!p) return;
+    pending.current = null;
+    clearTimeout(p.timer);
+    setUndo(null);
+    if (dev) return;
+    try {
+      const res = await fetch("/api/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Band-Code": code },
+        body: JSON.stringify({ id: p.item.id }),
+        keepalive: true,
+      });
+      if (!res.ok) throw new Error(res.status);
+    } catch {
+      // Put it back so nothing silently reappears later as "deleted".
+      setRequests((rs) => (rs.some((r) => r.id === p.item.id) ? rs : [...rs, p.item]));
+      setDelError("Couldn't delete that request. It's back in the list.");
+      setTimeout(() => setDelError(""), 5000);
+    }
+  };
+
+  const startDelete = (item) => {
+    if (pending.current) commitDelete(); // a second delete finalizes the first
+    const index = requests.findIndex((r) => r.id === item.id);
+    setRequests((rs) => rs.filter((r) => r.id !== item.id));
+    pending.current = { item, index, timer: setTimeout(commitDelete, 5000) };
+    setUndo(item);
+  };
+
+  const undoDelete = () => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    setUndo(null);
+    setRequests((rs) => [...rs, p.item]);
+  };
+
+  useEffect(() => {
+    const flush = () => { if (document.visibilityState === "hidden") commitDelete(); };
+    document.addEventListener("visibilitychange", flush);
+    window.addEventListener("pagehide", commitDelete);
+    return () => { document.removeEventListener("visibilitychange", flush); window.removeEventListener("pagehide", commitDelete); };
+  }, [code]);
+
   const markContacted = async (id) => {
     if (dev) {
       setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, contacted: true, contacted_at: new Date().toISOString() } : r)));
@@ -226,12 +332,19 @@ export default function RequestsPage() {
                 {arrange(requests, sort).map((it, i) =>
                   it.divider
                     ? <h3 key={"d" + i} class="rqdivider">{it.divider}</h3>
-                    : <Card key={it.r.id} r={it.r} onContacted={markContacted} />
+                    : <Card key={it.r.id} r={it.r} onContacted={markContacted} onDelete={startDelete} />
                 )}
               </div>
             </>
           )}
         </main>
+      )}
+
+      {(undo || delError) && (
+        <div class="toast" role="status">
+          <span>{undo ? "Request deleted" : delError}</span>
+          {undo && <button type="button" onClick={undoDelete}>Undo</button>}
+        </div>
       )}
     </>
   );
