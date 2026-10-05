@@ -84,11 +84,14 @@ export default async function handler(req, res) {
   const saveRequest = async () => {
     if (!storeConfigured()) return false;
     try {
-      await insertRequest({
-        venue: data.Venue, event_type: data["Event type"], distance: data.Distance, venue_type: data["Venue type"], school: data.School, venue_address: data["Venue address"], chapter: data.Chapter,
+      const row = {
+        venue: data.Venue, event_type: data["Event type"], distance: data.Distance, venue_type: data["Venue type"],
+        school: data.School, venue_address: data["Venue address"], chapter: data.Chapter,
         date_text: data.Date, date_sort: dateSort, time_of_day: data["Time of day"], set_length: data["Set length"],
         name: data.Name, contact: data.Contact, notes: data.Notes,
-      });
+      };
+      // Leave out empty fields so a request only touches the columns it actually uses.
+      await insertRequest(Object.fromEntries(Object.entries(row).filter(([, v]) => v !== "" && v != null)));
       return true;
     } catch (e) {
       console.error("save request failed", e);
