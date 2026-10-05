@@ -78,6 +78,11 @@ function Card({ r, onContacted }) {
       </div>
       <div class="rq-body">
         <h2>{r.name}</h2>
+        {r.school && <div class="rq-school">{r.school}</div>}
+        {r.venue_address && (
+          <a class="rq-school rq-addr" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.venue_address)}`}
+            target="_blank" rel="noreferrer">{r.venue_address}</a>
+        )}
         <div class="rq-date">{r.date_text}</div>
         <div class="rq-chips">
           {r.time_of_day && <span><i>Start</i>{r.time_of_day}</span>}

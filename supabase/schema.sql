@@ -32,3 +32,9 @@ alter table booking_requests enable row level security;
 
 -- Added later: the Greek chapter, when the gig is a Greek event. Safe to re-run.
 alter table booking_requests add column if not exists chapter text;
+
+-- Added later: the school, for off-campus requests. Safe to re-run.
+alter table booking_requests add column if not exists school text;
+
+-- Added later: the address, for off-campus venue gigs. Safe to re-run.
+alter table booking_requests add column if not exists venue_address text;

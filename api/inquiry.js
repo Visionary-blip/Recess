@@ -11,7 +11,7 @@ import { notifyBand } from "./_push.js";
 import { storeConfigured, insertRequest } from "./_store.js";
 
 const FIELDS = [
-  ["Venue", 100], ["Event type", 100], ["Distance", 100], ["Venue type", 100], ["Chapter", 150],
+  ["Venue", 100], ["Event type", 100], ["Distance", 100], ["Venue type", 100], ["School", 200], ["Venue address", 250], ["Chapter", 150],
   ["Date", 100], ["Time of day", 100], ["Set length", 100],
   ["Name", 200], ["Contact", 200], ["Notes", 2000],
 ];
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
     if (!storeConfigured()) return false;
     try {
       await insertRequest({
-        venue: data.Venue, event_type: data["Event type"], distance: data.Distance, venue_type: data["Venue type"], chapter: data.Chapter,
+        venue: data.Venue, event_type: data["Event type"], distance: data.Distance, venue_type: data["Venue type"], school: data.School, venue_address: data["Venue address"], chapter: data.Chapter,
         date_text: data.Date, date_sort: dateSort, time_of_day: data["Time of day"], set_length: data["Set length"],
         name: data.Name, contact: data.Contact, notes: data.Notes,
       });
@@ -99,7 +99,7 @@ export default async function handler(req, res) {
   const [emailed, saved, pushed] = await Promise.all([
     sendEmail(),
     saveRequest(),
-    notifyBand({ title: "New booking request", body: [data.Name, data.Date].filter(Boolean).join(" · ") }),
+    notifyBand({ title: "New booking request", body: [data.Name, data.School, data.Date].filter(Boolean).join(" · ") }),
   ]);
   if (!emailed && !saved && !pushed) return res.status(502).json({ error: "email failed" });
   return res.status(200).json({ ok: true });

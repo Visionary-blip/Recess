@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 import Calendar from "./Calendar.jsx";
 import { getBandCode } from "../lib/band.js";
 import { WM_CHAPTERS, US_CHAPTERS } from "../data/greek.js";
@@ -6,11 +6,15 @@ import { WM_CHAPTERS, US_CHAPTERS } from "../data/greek.js";
 const WM = "WILLIAM & MARY";
 const OFF = "OFF CAMPUS";
 
-// Steps depend on earlier answers: Greek gigs ask which chapter is hosting.
+// Steps depend on earlier answers: Greek gigs ask which chapter is hosting (off campus also asks the school);
+// off-campus venue gigs ask for the venue's address.
 const stepsFor = (a) => {
   const steps = ["venue", "eventType"];
   if (a.venue === OFF) steps.push("gigType");
-  if ((a.venue === WM && a.eventType === "Greek") || (a.venue === OFF && a.gigType === "Greek")) steps.push("chapter");
+  const offGreek = a.venue === OFF && a.gigType === "Greek";
+  if (offGreek) steps.push("school");
+  if ((a.venue === WM && a.eventType === "Greek") || offGreek) steps.push("chapter");
+  if (a.venue === OFF && a.gigType === "Venue") steps.push("address");
   return [...steps, "date", "time", "contact"];
 };
 
@@ -94,6 +98,150 @@ function ChapterPicker({ chapters, onPick }) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// Search-as-you-type school picker. The ~3,300-school list is loaded only when this step is reached.
+const MAX_SUGGESTIONS = 8;
+
+function SchoolPicker({ onPick }) {
+  const [schools, setSchools] = useState(null);
+  const [q, setQ] = useState("");
+  const [active, setActive] = useState(-1); // highlighted suggestion (keyboard / hover)
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    import("../data/schools.js").then((m) => setSchools(m.SCHOOLS)).catch(() => setSchools([]));
+  }, []);
+
+  // Precompute searchable text once per school so typing stays fast.
+  const index = useMemo(
+    () => (schools || []).map(([name, loc, alias]) => ({
+      label: name, loc,
+      full: norm(name),
+      words: `${name} ${alias}`.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
+      alias: norm(alias),
+    })),
+    [schools]
+  );
+
+  const query = norm(q);
+  const tokens = q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const results = useMemo(() => {
+    if (query.length < 2) return [];
+    const scored = [];
+    for (const s of index) {
+      // best match wins: nickname/abbreviation, name prefix, word prefix, then anywhere in the name
+      const rank = s.alias === query ? 0 : s.full.startsWith(query) ? 1
+        : tokens.every((t) => s.words.some((w) => w.startsWith(t))) ? 2 : s.full.includes(query) ? 3 : 9;
+      if (rank < 9) scored.push([rank, s]);
+    }
+    scored.sort((a, b) => a[0] - b[0] || a[1].label.length - b[1].label.length);
+    return scored.slice(0, MAX_SUGGESTIONS).map((x) => x[1]);
+  }, [index, query, tokens.join(" ")]);
+
+  const choose = (s) => onPick(`${s.label} (${s.loc})`);
+  const submit = () => {
+    if (open && active >= 0 && results[active]) return choose(results[active]);
+    if (q.trim()) onPick(q.trim());
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((i) => Math.min(i + 1, results.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
+    else if (e.key === "Escape") setOpen(false);
+    else if (e.key === "Enter") { e.preventDefault(); submit(); }
+  };
+
+  return (
+    <div class="schoolpick">
+      <div class="combo">
+        <input type="search" class="chsearch" placeholder="Search for a school" autocomplete="off" autocapitalize="off"
+          spellcheck={false} autofocus role="combobox" aria-expanded={open && results.length > 0} aria-controls="schoollist"
+          value={q} onKeyDown={onKeyDown}
+          onInput={(e) => { setQ(e.currentTarget.value); setActive(-1); setOpen(true); }} />
+        {open && results.length > 0 && (
+          <ul class="suggest" id="schoollist" role="listbox">
+            {results.map((s, n) => (
+              <li key={s.label + s.loc} role="option" aria-selected={n === active}
+                class={n === active ? "on" : ""} onMouseEnter={() => setActive(n)}
+                onMouseDown={(e) => { e.preventDefault(); choose(s); }}>
+                <b>{s.label}</b>
+                <span>{s.loc}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {schools === null && <p class="rqmsg">Loading schools…</p>}
+        {query.length >= 2 && schools && results.length === 0 && <p class="rqmsg">No match. You can still use what you typed.</p>}
+      </div>
+      <button class="go" type="button" disabled={!q.trim()} onClick={submit}>Next →</button>
+    </div>
+  );
+}
+
+// Street address with autofill from our /api/address lookup. Always lets people type their own.
+function AddressPicker({ onPick }) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [active, setActive] = useState(-1);
+  const [open, setOpen] = useState(true);
+  const [state, setState] = useState("idle"); // idle | loading | done | failed
+
+  // Look up suggestions shortly after typing stops; a newer keystroke cancels the older request.
+  useEffect(() => {
+    const text = q.trim();
+    if (text.length < 3) { setResults([]); setState("idle"); return; }
+    const ctrl = new AbortController();
+    setState("loading");
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/address?q=${encodeURIComponent(text)}`, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(res.status);
+        setResults((await res.json()).results || []);
+        setActive(-1);
+        setState("done");
+      } catch (e) {
+        if (e.name !== "AbortError") { setResults([]); setState("failed"); }
+      }
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [q]);
+
+  const submit = () => {
+    if (open && active >= 0 && results[active]) return onPick(results[active].label);
+    if (q.trim()) onPick(q.trim());
+  };
+  const onKeyDown = (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((i) => Math.min(i + 1, results.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
+    else if (e.key === "Escape") setOpen(false);
+    else if (e.key === "Enter") { e.preventDefault(); submit(); }
+  };
+
+  return (
+    <div class="schoolpick">
+      <div class="combo">
+        <input type="text" class="chsearch" placeholder="Start typing an address" autocomplete="off" autocapitalize="off"
+          spellcheck={false} autofocus enterkeyhint="done" role="combobox" aria-expanded={open && results.length > 0}
+          aria-controls="addresslist" value={q} onKeyDown={onKeyDown}
+          onInput={(e) => { setQ(e.currentTarget.value); setOpen(true); }} />
+        {open && results.length > 0 && (
+          <ul class="suggest" id="addresslist" role="listbox">
+            {results.map((r, n) => (
+              <li key={r.label} role="option" aria-selected={n === active} class={n === active ? "on" : ""}
+                onMouseEnter={() => setActive(n)} onMouseDown={(e) => { e.preventDefault(); onPick(r.label); }}>
+                <b>{r.label}</b>
+              </li>
+            ))}
+          </ul>
+        )}
+        {state === "loading" && results.length === 0 && <p class="rqmsg">Searching…</p>}
+        {state === "done" && results.length === 0 && <p class="rqmsg">No match. You can still use what you typed.</p>}
+        {state === "failed" && <p class="rqmsg">Autofill isn't available right now. Type the full address and tap Next.</p>}
+      </div>
+      <button class="go" type="button" disabled={!q.trim()} onClick={submit}>Next →</button>
     </div>
   );
 }
@@ -208,6 +356,8 @@ export default function BookingForm({ bandName, formUrl }) {
       Venue: a.venue,
       [a.venue === WM ? "Event type" : "Distance"]: a.eventType,
       ...(a.venue === OFF && { "Venue type": a.gigType }),
+      ...(a.venue === OFF && a.gigType === "Greek" && { School: a.school }),
+      ...(a.venue === OFF && a.gigType === "Venue" && { "Venue address": a.address }),
       ...(stepsFor(a).includes("chapter") && { Chapter: a.chapter }),
       Date: a.date,
       "Date ISO": a.dateISO || "",
@@ -235,6 +385,8 @@ export default function BookingForm({ bandName, formUrl }) {
   const title = {
     venue: "Where's the gig?",
     eventType: a.venue === WM ? "What kind of event?" : "How far away?",
+    school: "Which school?",
+    address: "Where's the venue?",
     gigType: "What kind of gig?",
     chapter: "Which chapter?",
     date: "When is it?",
@@ -268,6 +420,8 @@ export default function BookingForm({ bandName, formUrl }) {
               <Tiles oneCol key={a.venue} options={typeOptions(a.venue).map((label) => ({ label }))}
                 onPick={(t) => go({ eventType: t })} />
             )}
+            {step === "address" && <AddressPicker onPick={(ad) => go({ address: ad })} />}
+            {step === "school" && <SchoolPicker onPick={(sc) => go({ school: sc })} />}
             {step === "gigType" && (
               <Tiles oneCol key={a.eventType} options={[{ label: "Venue" }, { label: "Greek" }]}
                 onPick={(t) => go({ gigType: t })} />
